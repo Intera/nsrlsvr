@@ -1,8 +1,15 @@
 #include <dirent.h>
-#include "intera_extension.h"
+#include <inttypes.h>
+using sha1 = std::tuple<uint64_t, uint64_t, uint32_t>;
+using sha256 = std::tuple<uint64_t, uint64_t, uint64_t, uint64_t>;
+using std::binary_search;
 using std::endl;
 using std::make_pair;
 using std::make_tuple;
+using std::stringstream;
+using std::to_string;
+using boost::char_separator;
+using boost::tokenizer;
 
 string hashes_location_ext{PKGDATADIR "/hashes"};
 vector<sha1> hash_set_sha1;
@@ -81,6 +88,10 @@ void log_loaded_count(uint64_t count) {
   log(LogLevel::INFO, string("loaded ") + to_string(count) + string(" hashes"));
 }
 
+void log_invalid_line(string line) {
+  log(LogLevel::ALERT, "invalid line \"" + line + "\"");
+}
+
 uint64_t load_file_format_combined(ifstream& infile) {
   // skip header
   const regex hash_re{"^([A-F0-9]{32})?;([A-F0-9]{40})?;([A-F0-9]{64})?;.*"};
@@ -94,11 +105,11 @@ uint64_t load_file_format_combined(ifstream& infile) {
   while (infile) {
     string line;
     getline(infile, line);
-    if (0 == line.size()) continue;
+    if (32 > line.size()) continue;
     transform(line.begin(), line.end(), line.begin(), ::toupper);
     std::smatch matches;
     if (!std::regex_search(line, matches, hash_re)) {
-      log(LogLevel::ALERT, "invalid line \"" + line + "\"");
+      log_invalid_line(line);
       continue;
     }
     if (matches[1].length()) {
@@ -117,36 +128,92 @@ uint64_t load_file_format_combined(ifstream& infile) {
   return count;
 }
 
+uint64_t load_file_format_nsrl(ifstream& infile) {
+  // "SHA-1","MD5","CRC32","FileName","FileSize","ProductCode","OpSystemCode","SpecialCode"
+  // "00000079FD7AAC9B2F9C988C50750E1F50B27EB5","8ED4B4ED952526D89899E723F3488DE4","7A5407CA","wow64_microsoft-windows-i...
+  const regex hash_re{"^\"([A-F0-9]{40})\",\"([A-F0-9]{32})\",.*"};
+  uint64_t count = 0;
+  string line;
+  // skip header
+  getline(infile, line);
+  // read content
+  while (infile) {
+    getline(infile, line);
+    if (77 > line.size()) continue;
+    transform(line.begin(), line.begin() + 77, line.begin(), ::toupper);
+    std::smatch matches;
+    if (!std::regex_search(line, matches, hash_re)) {
+      log_invalid_line(line);
+      continue;
+    }
+    if (matches[1].length()) {
+      hash_set_sha1.emplace_back(to_sha1(matches[1].str()));
+      count += 1;
+    }
+    if (matches[2].length()) {
+      hash_set.emplace_back(to_md5(matches[2].str()));
+      count += 1;
+    }
+  }
+  return count;
+}
+
 uint64_t load_file_format_md5(ifstream& infile) {
   // newline separated list of md5 sums, with optional ignored data separated by a semicolon
-  const regex hash_re{"^[A-Fa-f0-9]{32}($|(;.*))"};
+  const regex hash_re{"^[A-F0-9]{32}($|(;.*))"};
   uint64_t count = 0;
   while (infile) {
     string line;
     getline(infile, line);
-    if (0 == line.size()) continue;
+    if (32 > line.size()) continue;
+    transform(line.begin(), line.begin() + 32, line.begin(), ::toupper);
     if (!regex_match(line.cbegin(), line.cend(), hash_re)) {
       if (string_starts_with(line, "MD5;")) continue;
-      log(LogLevel::ALERT, "invalid line \"" + line + "\"");
+      log_invalid_line(line);
       continue;
     }
-    transform(line.begin(), line.begin() + 32, line.begin(), ::toupper);
-    hash_set.emplace_back(to_pair64(line.substr(0, 32)));
+    hash_set.emplace_back(to_md5(line.substr(0, 32)));
     count += 1;
   }
   return count;
 }
 
-uint64_t load_file_format_nsrl(ifstream& infile) {
-  return 0;
-}
-
 uint64_t load_file_format_sha1(ifstream& infile) {
-  return 0;
+  const regex hash_re{"^[A-F0-9]{40}($|(;.*))"};
+  uint64_t count = 0;
+  while (infile) {
+    string line;
+    getline(infile, line);
+    if (40 > line.size()) continue;
+    transform(line.begin(), line.begin() + 40, line.begin(), ::toupper);
+    if (!regex_match(line.cbegin(), line.cend(), hash_re)) {
+      if (string_starts_with(line, "SHA1;")) continue;
+      log_invalid_line(line);
+      continue;
+    }
+    hash_set_sha1.emplace_back(to_sha1(line.substr(0, 40)));
+    count += 1;
+  }
+  return count;
 }
 
 uint64_t load_file_format_sha256(ifstream& infile) {
-  return 0;
+  const regex hash_re{"^[A-F0-9]{64}($|(;.*))"};
+  uint64_t count = 0;
+  while (infile) {
+    string line;
+    getline(infile, line);
+    if (64 > line.size()) continue;
+    transform(line.begin(), line.begin() + 64, line.begin(), ::toupper);
+    if (!regex_match(line.cbegin(), line.cend(), hash_re)) {
+      if (string_starts_with(line, "SHA256;")) continue;
+      log_invalid_line(line);
+      continue;
+    }
+    hash_set_sha256.emplace_back(to_sha256(line.substr(0, 64)));
+    count += 1;
+  }
+  return count;
 }
 
 uint64_t load_file(string path, HashFileFormat format) {
@@ -217,4 +284,79 @@ void load_hashes_ext() {
   }
   // load all supported files in directory
   load_directory(hashes_location);
+}
+
+bool is_present_in_hashes_md5(const string& hash) {
+  return binary_search(hash_set.cbegin(), hash_set.cend(), to_pair64(hash));
+}
+
+bool is_present_in_hashes_sha1(const string& hash) {
+  return binary_search(hash_set_sha1.cbegin(), hash_set_sha1.cend(), to_sha1(hash));
+}
+
+bool is_present_in_hashes_sha256(const string& hash) {
+  return binary_search(hash_set_sha256.cbegin(), hash_set_sha256.cend(), to_sha256(hash));
+}
+
+auto tokenize_ext(const string&& line) {
+  vector<string> rv;
+  char_separator<char> sep(" ");
+  tokenizer<char_separator<char>> tokens(line, sep);
+  for (const auto& t : tokens) {
+    rv.emplace_back(t);
+  }
+  return rv;
+}
+
+void handle_client_ext(tcp::iostream& stream) {
+  const string ipaddr = stream.socket().remote_endpoint().address().to_string();
+  unsigned long long queries = 0;
+  try {
+    bool byebye = false;
+    while (stream && (! byebye)) {
+      string line;
+      getline(stream, line);
+      // trim leading/following whitespace
+      auto end_ws = line.find_last_not_of("\t\n\v\f\r ");
+      // trips on the empty string, or a string of pure whitespace
+      if (line.size() == 0 || end_ws == string::npos) break;
+      auto head_iter = line.cbegin() + line.find_first_not_of("\t\n\v\f\r ");
+      auto end_iter = line.cbegin() + end_ws + 1;
+      auto commands = tokenize_ext(string(head_iter, end_iter));
+      if ("query" == commands.at(0)) {
+        stringstream rv;
+        rv << "OK ";
+        if ("sha1" == commands.at(1)) {
+          for (size_t idx = 2; idx < commands.size(); ++idx)
+            rv << (is_present_in_hashes_sha1(commands.at(idx)) ? "1" : "0");
+        }
+        else if ("sha256" == commands.at(1)) {
+          for (size_t idx = 2; idx < commands.size(); ++idx)
+            rv << (is_present_in_hashes_sha256(commands.at(idx)) ? "1" : "0");
+        }
+        else {
+          for (size_t idx = 1; idx < commands.size(); ++idx)
+            rv << (is_present_in_hashes_md5(commands.at(idx)) ? "1" : "0");
+        }
+        rv << "\r\n";
+        queries += (commands.size() - 1);
+        stream << rv.str();
+      }
+      else if ("version:" == commands.at(0)) stream << "OK\r\n";
+      else if ("bye" == commands.at(0)) byebye = true;
+      else if ("status" == commands.at(0)) stream << "NOT SUPPORTED\r\n";
+      else if ("upshift" == commands.at(0)) stream << "NOT OK\r\n";
+      else if ("downshift" == commands.at(0)) stream << "NOT OK\r\n";
+      else {
+        stream << "NOT OK\r\n";
+        byebye = true;
+      }
+    }
+  } catch (std::exception& e) {
+    log(LogLevel::ALERT, string("Error: ") + e.what());
+  }
+
+  stringstream status_msg;
+  status_msg << ipaddr << " closed session after " << queries << " queries";
+  log(LogLevel::ALERT, status_msg.str());
 }

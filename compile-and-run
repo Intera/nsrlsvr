@@ -1,4 +1,5 @@
 #!/bin/sh -e
 
 make
-./src/nsrlsvr --dry-run
+./src/nsrlsvr
+#--dry-run

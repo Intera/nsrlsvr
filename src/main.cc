@@ -33,6 +33,10 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <regex>
 #include <vector>
 
+// intera edit
+#include <boost/tokenizer.hpp>
+#include <sstream>
+
 using boost::asio::ip::tcp;
 using boost::program_options::notify;
 using boost::program_options::options_description;
@@ -275,6 +279,8 @@ void parse_options(int argc, char* argv[]) {
 
 /** The set of all loaded hashes, represented as a const reference. */
 const vector<pair64>& hashes{hash_set};
+const vector<sha1>& hashes_sha1{hash_set_sha1};
+const vector<sha256>& hashes_sha256{hash_set_sha256};
 
 /** Writes to syslog with the given priority level.
 
@@ -301,9 +307,9 @@ int main(int argc, char* argv[]) {
   // temp dev
   //if (!dry_run) daemonize();
 
-  //load_hashes();
+  // intera edit
   load_hashes_ext();
-  return 0;
+  //return 0;
 
   // The following line helps avoid zombie processes.  Normally parents
   // need to reap their children in order to prevent zombie processes;
@@ -338,7 +344,8 @@ int main(int argc, char* argv[]) {
 
     if (0 == fork()) {
       log(LogLevel::ALERT, "calling handle_client");
-      handle_client(stream);
+      // intera edit
+      handle_client_ext(stream);
       return 0;
     }
   }
