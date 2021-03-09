@@ -60,6 +60,8 @@ string hashes_location{PKGDATADIR "/hashes.txt"};
 uint16_t port{9120};
 bool dry_run{false};
 
+#include "intera_extension.cc"
+
 /** Attempts to load a set of MD5 hashes from disk.
  * Each line must be either blank or 32 hexadecimal digits.  If the
  * file doesn't conform to this, nsrlsvr will abort and display an
@@ -198,7 +200,7 @@ void parse_options(int argc, char* argv[]) {
   options.add_options()("help,h", "Help screen")("version,v",
                                                  "Display package version")(
       "bug-report,b", "Display bug reporting information")(
-      "file,f", value<string>()->default_value(PKGDATADIR "/hashes.txt"),
+      "file,f", value<string>()->default_value(PKGDATADIR "/hashes"),
       "hash file")("port,p", value<uint16_t>()->default_value(9120), "port")(
       "dry-run", "test configuration");
   variables_map vm;
@@ -262,10 +264,12 @@ void parse_options(int argc, char* argv[]) {
     exit(EXIT_FAILURE);
   }
   hashes_location = string(filepath);
+  /* intera edit
   if (not ifstream(hashes_location.c_str())) {
     cerr << "Could not open " + hashes_location + " for reading.\n";
     exit(EXIT_FAILURE);
   }
+  */
 }
 }  // namespace
 
@@ -294,9 +298,12 @@ int main(int argc, char* argv[]) {
                 "wait, what kind of system is this?");
   parse_options(argc, argv);
 
-  if (!dry_run) daemonize();
+  // temp dev
+  //if (!dry_run) daemonize();
 
-  load_hashes();
+  //load_hashes();
+  load_hashes_ext();
+  return 0;
 
   // The following line helps avoid zombie processes.  Normally parents
   // need to reap their children in order to prevent zombie processes;
