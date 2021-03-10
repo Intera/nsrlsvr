@@ -91,9 +91,9 @@ void log_invalid_line(string line) {
 }
 
 uint64_t load_file_format_combined(ifstream& infile) {
-  // skip header
   const regex hash_re{"^([A-F0-9]{32})?\\W([A-F0-9]{40})?\\W([A-F0-9]{64})?($|(\\W.*))"};
   uint64_t count = 0;
+  // skip header
   while (infile) {
     string line;
     getline(infile, line);

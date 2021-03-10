@@ -271,7 +271,7 @@ void parse_options(int argc, char* argv[]) {
     exit(EXIT_FAILURE);
   }
   hashes_location = string(filepath);
-  /* intera edit
+  /* intera edit. is now a directory and checked later.
   if (not ifstream(hashes_location.c_str())) {
     cerr << "Could not open " + hashes_location + " for reading.\n";
     exit(EXIT_FAILURE);
@@ -307,7 +307,6 @@ int main(int argc, char* argv[]) {
                 "wait, what kind of system is this?");
   parse_options(argc, argv);
 
-  // temp dev
   if (!dry_run && !no_daemon) daemonize();
 
   // intera edit
