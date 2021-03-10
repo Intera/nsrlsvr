@@ -38,7 +38,6 @@ bool operator<(const sha1& a, const sha1& b) {
   if (std::get<1>(a) < std::get<1>(b)) return true;
   if (std::get<1>(a) > std::get<1>(b)) return false;
   if (std::get<2>(a) < std::get<2>(b)) return true;
-  if (std::get<2>(a) > std::get<2>(b)) return false;
   return false;
 }
 
@@ -50,7 +49,6 @@ bool operator<(const sha256& a, const sha256& b) {
   if (std::get<2>(a) < std::get<2>(b)) return true;
   if (std::get<2>(a) > std::get<2>(b)) return false;
   if (std::get<3>(a) < std::get<3>(b)) return true;
-  if (std::get<3>(a) > std::get<3>(b)) return false;
   return false;
 }
 
@@ -68,7 +66,7 @@ sha1 to_sha1(const string& input) {
   auto cs = string(input.cbegin() + 32, input.cend());
   auto a = std::strtoull(as.c_str(), nullptr, 16);
   auto b = std::strtoull(bs.c_str(), nullptr, 16);
-  auto c = std::strtoul(cs.c_str(), nullptr, 8);
+  auto c = std::strtoul(cs.c_str(), nullptr, 16);
   return make_tuple(a, b, c);
 }
 
@@ -94,7 +92,7 @@ void log_invalid_line(string line) {
 
 uint64_t load_file_format_combined(ifstream& infile) {
   // skip header
-  const regex hash_re{"^([A-F0-9]{32})?;([A-F0-9]{40})?;([A-F0-9]{64})?;.*"};
+  const regex hash_re{"^([A-F0-9]{32})?\\W([A-F0-9]{40})?\\W([A-F0-9]{64})?($|(\\W.*))"};
   uint64_t count = 0;
   while (infile) {
     string line;
@@ -160,7 +158,7 @@ uint64_t load_file_format_nsrl(ifstream& infile) {
 
 uint64_t load_file_format_md5(ifstream& infile) {
   // newline separated list of md5 sums, with optional ignored data separated by a semicolon
-  const regex hash_re{"^[A-F0-9]{32}($|(;.*))"};
+  const regex hash_re{"^[A-F0-9]{32}($|(\\W.*))"};
   uint64_t count = 0;
   while (infile) {
     string line;
@@ -179,7 +177,7 @@ uint64_t load_file_format_md5(ifstream& infile) {
 }
 
 uint64_t load_file_format_sha1(ifstream& infile) {
-  const regex hash_re{"^[A-F0-9]{40}($|(;.*))"};
+  const regex hash_re{"^[A-F0-9]{40}($|(\\W.*))"};
   uint64_t count = 0;
   while (infile) {
     string line;
@@ -198,7 +196,7 @@ uint64_t load_file_format_sha1(ifstream& infile) {
 }
 
 uint64_t load_file_format_sha256(ifstream& infile) {
-  const regex hash_re{"^[A-F0-9]{64}($|(;.*))"};
+  const regex hash_re{"^[A-F0-9]{64}($|(\\W.*))"};
   uint64_t count = 0;
   while (infile) {
     string line;
@@ -325,24 +323,27 @@ void handle_client_ext(tcp::iostream& stream) {
       auto commands = tokenize_ext(string(head_iter, end_iter));
       if ("query" == commands.at(0)) {
         stringstream rv;
+        string format = commands.at(1);
         rv << "OK ";
-        if ("sha1" == commands.at(1)) {
+        if ("sha1" == format) {
           for (size_t idx = 2; idx < commands.size(); ++idx)
             rv << (is_present_in_hashes_sha1(commands.at(idx)) ? "1" : "0");
+          queries += (commands.size() - 2);
         }
-        else if ("sha256" == commands.at(1)) {
+        else if ("sha256" == format) {
           for (size_t idx = 2; idx < commands.size(); ++idx)
             rv << (is_present_in_hashes_sha256(commands.at(idx)) ? "1" : "0");
+          queries += (commands.size() - 2);
         }
         else {
           for (size_t idx = 1; idx < commands.size(); ++idx)
             rv << (is_present_in_hashes_md5(commands.at(idx)) ? "1" : "0");
+          queries += (commands.size() - 1);
         }
         rv << "\r\n";
-        queries += (commands.size() - 1);
         stream << rv.str();
       }
-      else if ("version:" == commands.at(0)) stream << "OK\r\n";
+      else if ("Version:" == commands.at(0)) stream << "OK\r\n";
       else if ("bye" == commands.at(0)) byebye = true;
       else if ("status" == commands.at(0)) stream << "NOT SUPPORTED\r\n";
       else if ("upshift" == commands.at(0)) stream << "NOT OK\r\n";

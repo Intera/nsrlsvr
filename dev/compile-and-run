@@ -1,0 +1,6 @@
+#!/bin/sh -e
+# usage: ./dev/compile-and-run
+# to use the test-data, link test-data into PKGDATADIR, for example ln -s $PWD/dev/test-data /usr/local/share/nsrlsvr/hashes
+
+make
+./src/nsrlsvr --no-daemon

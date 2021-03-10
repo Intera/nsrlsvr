@@ -1,3 +1,17 @@
+# fork of nsrlsvr
+modifications to the original nsrlsvr:
+* load multiple hash files from a directory
+* input files are filtered by extension,
+* support additional hash and file formats
+  * .nsrl: the minimal NSRLFile.nsrl with md5 and sha1 hashes
+  * .md5: csv with md5 hashes in the first column. delimiter can be any non-word character. quoting with double quotes is not supported. invalid lines are skipped and logged
+  * .sha1: like .md5 but for sha1 hashes
+  * .sha256: like .md5 but for sha256 hashes
+  * .combined: like .md5 but with md5, sha1 and sha256 hashes in the first three columns
+* new option "--no-daemon" to keep the server in the foreground (exit with ctrl+c)
+
+can be used with a modified [nsrllookup](https://github.com/Intera/nsrllookup/tree/sha1-sha256-support), but is also backwards compatible.
+
 # nsrlsvr
 
 nsrlsvr is a tool to facilitate looking up data in NIST’s National Software Reference Library Reference Data Set.

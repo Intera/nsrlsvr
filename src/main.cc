@@ -63,6 +63,7 @@ vector<pair64> hash_set;
 string hashes_location{PKGDATADIR "/hashes.txt"};
 uint16_t port{9120};
 bool dry_run{false};
+bool no_daemon{false};
 
 #include "intera_extension.cc"
 
@@ -206,11 +207,13 @@ void parse_options(int argc, char* argv[]) {
       "bug-report,b", "Display bug reporting information")(
       "file,f", value<string>()->default_value(PKGDATADIR "/hashes"),
       "hash file")("port,p", value<uint16_t>()->default_value(9120), "port")(
-      "dry-run", "test configuration");
+      "dry-run", "test configuration")(
+      "no-daemon", "test configuration");
   variables_map vm;
   store(parse_command_line(argc, argv, options), vm);
 
   dry_run = vm.count("dry-run") ? true : false;
+  no_daemon = vm.count("no-daemon") ? true : false;
 
   if (vm.count("help")) {
     cout << options << "\n";
@@ -305,11 +308,10 @@ int main(int argc, char* argv[]) {
   parse_options(argc, argv);
 
   // temp dev
-  //if (!dry_run) daemonize();
+  if (!dry_run && !no_daemon) daemonize();
 
   // intera edit
   load_hashes_ext();
-  //return 0;
 
   // The following line helps avoid zombie processes.  Normally parents
   // need to reap their children in order to prevent zombie processes;
